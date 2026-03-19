@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MBOKA-TECH Music Player</title>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="header-left">
+                <h1>
+                    <i class="fa-solid fa-music"></i>
+                    MBOKA-TECH
+                </h1>
+                <p style="margin-top: 5px; opacity: 0.9; font-size: 0.9rem;">
+                    Offline Music Player
+                </p>
+            </div>
+            
+            <div class="header-right">
+                <div class="profile-dropdown">
+                    <button class="profile-btn" id="profile-toggle">
+                        <div id="profile-icon">
+                            <i class="fas fa-user"></i>
+                        </div>
+                    </button>
+                    
+                    <div class="dropdown-content" id="profile-dropdown">
+                        <div class="dropdown-header">
+                            <div id="dropdown-profile-pic">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div>
+                                <strong id="dropdown-username">Music Listener</strong>
+                                <div id="dropdown-email">Local Storage</div>
+                            </div>
+                        </div>
+                        
+                        <div class="dropdown-divider"></div>
+                        
+                        <a href="#" onclick="showPage('library'); return false;">
+                            <i class="fas fa-music"></i> My Library
+                        </a>
+                        <a href="#" onclick="showPage('favourites'); return false;">
+                            <i class="fas fa-heart"></i> Favourites
+                        </a>
+                        <a href="#" onclick="showPage('playlists'); return false;">
+                            <i class="fas fa-list"></i> Playlists
+                        </a>
+                        <a href="#" onclick="showPage('recent'); return false;">
+                            <i class="fas fa-clock"></i> Recently Added
+                        </a>
+                        <a href="#" onclick="showPage('profile'); return false;">
+                            <i class="fas fa-user-cog"></i> Profile Settings
+                        </a>
+                        
+                        <div class="dropdown-divider"></div>
+                        
+                        <a href="#" onclick="clearAllData(); return false;">
+                            <i class="fas fa-trash"></i> Clear Library
+                        </a>
+                        <a href="#" onclick="logout(); return false;">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <nav>
+            <button class="nav-btn active" data-page="library">
+                <i class="fas fa-music"></i> Library
+            </button>
+            <button class="nav-btn" data-page="favourites">
+                <i class="fas fa-heart"></i> Favourites
+            </button>
+            <button class="nav-btn" data-page="playlists">
+                <i class="fas fa-list"></i> Playlists
+            </button>
+            <button class="nav-btn" data-page="recent">
+                <i class="fas fa-clock"></i> Recent
+            </button>
+            <button class="nav-btn" data-page="profile">
+                <i class="fas fa-user"></i> Profile
+            </button>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <!-- File Access Permission Card (Shows on first load) -->
+        <div class="card" id="permission-card" style="display: none; border-left: 5px solid #ff6b6b;">
+            <div style="text-align: center; padding: 20px;">
+                <i class="fas fa-shield-alt" style="font-size: 4rem; color: #ff6b6b; margin-bottom: 20px;"></i>
+                <h2 style="color: #2c3e50; margin-bottom: 15px;">All Files Access Required</h2>
+                
+                <div style="background: #f8fbff; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: left;">
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                        <i class="fas fa-folder-open" style="font-size: 2rem; color: #3498db;"></i>
+                        <div>
+                            <strong style="font-size: 1.2rem;">ZArchiver Style Access</strong>
+                            <div style="color: #666;">Version 1.0.0</div>
+                        </div>
+                    </div>
+                    
+                    <h3 style="color: #3498db; margin: 15px 0 10px 0;">Allow Permission</h3>
+                    <p style="color: #666; line-height: 1.6; margin-bottom: 15px;">
+                        This app will be able to read, modify, and delete all files on this phone or any connected storage devices. If you allow this, the app may access files that aren't related to the app without notifying you.
+                    </p>
+                    
+                    <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-top: 15px;">
+                        <i class="fas fa-info-circle" style="color: #856404;"></i>
+                        <strong style="color: #856404;"> Required for:</strong>
+                        <ul style="color: #856404; margin-top: 10px; padding-left: 20px;">
+                            <li>Reading music files from your device</li>
+                            <li>Playing MP3, WAV, and other audio formats</li>
+                            <li>Saving your playlists and favourites</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <button onclick="grantFileAccess()" class="success" style="padding: 15px 30px;">
+                        <i class="fas fa-check-circle"></i> Allow Access
+                    </button>
+                    <button onclick="denyFileAccess()" class="danger" style="padding: 15px 30px;">
+                        <i class="fas fa-times-circle"></i> Deny
+                    </button>
+                </div>
+                
+                <p style="color: #888; font-size: 0.9rem; margin-top: 20px;">
+                    <i class="fas fa-lock"></i> Your files remain on your device. We never upload them anywhere.
+                </p>
+            </div>
+        </div>
+
+        <!-- Now Playing Bar (Shows when music is playing) -->
+        <div class="card" id="nowPlayingBar" style="display: none; background: linear-gradient(135deg, #ffdc2b, #ff5f2b); color: white; padding: 15px;">
+            <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 15px; flex: 2; min-width: 250px;">
+                    <div style="width: 50px; height: 50px; background: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-music fa-lg"></i>
+                    </div>
+                    <div>
+                        <div id="currentSongTitle" style="font-weight: bold; font-size: 1.1rem;">No song playing</div>
+                        <div id="currentSongArtist" style="font-size: 0.9rem; opacity: 0.9;">Select a song to play</div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 15px; flex: 3;">
+                    <button onclick="previousSong()" class="control-btn"><i class="fas fa-backward"></i></button>
+                    <button onclick="playPause()" class="control-btn play-pause" id="playPauseBtn"><i class="fas fa-play"></i></button>
+                    <button onclick="nextSong()" class="control-btn"><i class="fas fa-forward"></i></button>
+                    
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 200px;">
+                        <span id="currentTimeDisplay" style="font-size: 0.9rem;">0:00</span>
+                        <input type="range" id="progressBar" value="0" min="0" max="100" style="flex: 1; height: 5px;">
+                        <span id="durationDisplay" style="font-size: 0.9rem;">0:00</span>
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; gap: 10px; min-width: 150px;">
+                    <i class="fas fa-volume-up"></i>
+                    <input type="range" id="volumeControl" min="0" max="1" step="0.1" value="1" style="width: 100px;">
+                </div>
+            </div>
+        </div>
+
+        <!-- LIBRARY PAGE -->
+        <div id="library-page" class="page active">
+            <div class="card">
+                <h2><i class="fas fa-music"></i> My Music Library</h2>
+                
+                <!-- File Upload Area -->
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" accept="audio/*" multiple style="display: none">
+                    <div class="upload-content">
+                        <i class="fas fa-cloud-upload-alt" style="font-size: 3rem; color: #3498db; margin-bottom: 15px;"></i>
+                        <h3 style="color: #3498db;">Add Your Music</h3>
+                        <p style="color: #666;">Click to select MP3, WAV, or other audio files</p>
+                        <p style="color: #888; font-size: 0.9rem;">Files are stored locally in your browser</p>
+                        <button onclick="document.getElementById('fileInput').click()" class="success" style="margin-top: 15px;">
+                            <i class="fas fa-plus"></i> Choose Files
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Stats Cards (Like your original design) -->
+                <div class="stats-container">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalSongs">0</div>
+                        <div class="stat-label">Total Songs</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalFavourites">0</div>
+                        <div class="stat-label">Favourites</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalPlaylists">0</div>
+                        <div class="stat-label">Playlists</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="storageUsed">0 MB</div>
+                        <div class="stat-label">Storage Used</div>
+                    </div>
+                </div>
+                
+                <!-- Search Bar -->
+                <div class="search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Search your music..." onkeyup="searchMusic()">
+                </div>
+                
+                <!-- Songs List -->
+                <div class="songs-list" id="songsList">
+                    <div class="empty-state" id="emptyLibrary">
+                        <i class="fas fa-headphones"></i>
+                        <h3>Your library is empty</h3>
+                        <p>Add some music files to get started</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- FAVOURITES PAGE -->
+        <div id="favourites-page" class="page">
+            <div class="card">
+                <h2><i class="fas fa-heart"></i> My Favourites</h2>
+                
+                <div class="songs-list" id="favouritesList">
+                    <div class="empty-state">
+                        <i class="fas fa-heart"></i>
+                        <h3>No favourite songs</h3>
+                        <p>Click the heart icon on any song to add it to favourites</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- PLAYLISTS PAGE -->
+        <div id="playlists-page" class="page">
+            <div class="card">
+                <h2><i class="fas fa-list"></i> My Playlists</h2>
+                
+                <button onclick="createPlaylist()" class="success" style="width: 100%; margin-bottom: 20px;">
+                    <i class="fas fa-plus"></i> Create New Playlist
+                </button>
+                
+                <div class="playlists-grid" id="playlistsGrid"></div>
+                
+                <div class="empty-state" id="emptyPlaylists" style="display: none;">
+                    <i class="fas fa-list"></i>
+                    <h3>No playlists yet</h3>
+                    <p>Create your first playlist</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- RECENT PAGE -->
+        <div id="recent-page" class="page">
+            <div class="card">
+                <h2><i class="fas fa-clock"></i> Recently Added</h2>
+                
+                <div class="songs-list" id="recentSongsList">
+                    <div class="empty-state">
+                        <i class="fas fa-clock"></i>
+                        <h3>No recently added songs</h3>
+                        <p>Add music to see them here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- PROFILE PAGE -->
+        <div id="profile-page" class="page">
+            <div class="card">
+                <h2><i class="fas fa-user-cog"></i> Profile Settings</h2>
+                
+                <div class="profile-content">
+                    <!-- Profile Header (Small icon, no large image) -->
+                    <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 30px; padding: 15px; background: #f8fbff; border-radius: 8px;">
+                        <div style="width: 60px; height: 60px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
+                            <i class="fas fa-user-circle"></i>
+                        </div>
+                        <div>
+                            <h3 style="color: #3498db; margin-bottom: 5px;" id="profileName">Music Listener</h3>
+                            <button onclick="updateProfilePicture()" class="secondary" style="padding: 5px 15px;">
+                                <i class="fas fa-camera"></i> Change Photo
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Settings Form -->
+                    <div class="form-group">
+                        <label>Display Name</label>
+                        <input type="text" id="displayName" value="Music Listener">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Default Volume</label>
+                        <input type="range" id="defaultVolume" min="0" max="1" step="0.1" value="1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Theme Color</label>
+                        <select id="themeColor">
+                            <option value="#3498db">Blue (Default)</option>
+                            <option value="#28a745">Green</option>
+                            <option value="#ff6b6b">Red</option>
+                            <option value="#ff9800">Orange</option>
+                            <option value="#9b59b6">Purple</option>
+                        </select>
+                    </div>
+                    
+                    <button onclick="saveProfile()" class="success" style="width: 100%;">
+                        <i class="fas fa-save"></i> Save Settings
+                    </button>
+                    
+                    <!-- Storage Stats -->
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+                        <h3 style="color: #3498db; margin-bottom: 15px;">Storage Information</h3>
+                        <div style="background: #f8fbff; padding: 15px; border-radius: 8px;">
+                            <div class="storage-bar" style="margin-bottom: 15px;">
+                                <div class="storage-used" id="storageBar" style="width: 0%; height: 8px; background: #3498db; border-radius: 4px;"></div>
+                            </div>
+                            <div><i class="fas fa-database"></i> Total Storage Used: <span id="totalStorage">0 MB</span></div>
+                            <div><i class="fas fa-headphones"></i> Total Songs: <span id="totalSongsStat">0</span></div>
+                            <div><i class="fas fa-heart"></i> Favourites: <span id="totalFavouritesStat">0</span></div>
+                            <div><i class="fas fa-clock"></i> Total Playtime: <span id="totalPlaytime">0 min</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast-notification" style="display: none;"></div>
+    
+    <!-- Audio Element -->
+    <audio id="audioPlayer"></audio>
+    
+    <script src="script.js"></script>
+</body>
+</html>
