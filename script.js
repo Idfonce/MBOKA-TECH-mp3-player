@@ -1,768 +1,398 @@
 // ===========================================
-// DATA STORAGE KEYS
+// BETWIN PRO - Complete JavaScript
 // ===========================================
-const PERMISSION_KEY = 'mboka_permission';
-const MUSIC_LIBRARY_KEY = 'mboka_music_library';
-const FAVOURITES_KEY = 'mboka_favourites';
-const PLAYLISTS_KEY = 'mboka_playlists';
-const PROFILE_KEY = 'mboka_profile';
 
-// ===========================================
-// GLOBAL VARIABLES
-// ===========================================
-let hasPermission = localStorage.getItem(PERMISSION_KEY) === 'granted';
-let musicLibrary = [];
-let favourites = [];
-let playlists = [];
-let profile = {};
+// ---------- DATA STORAGE ----------
+let currentSlip = []; // Matches being built
+let allBets = []; // All placed bets (online, won, lost)
+let currentTab = 'online';
+let profitPlan = {
+    stake: 1000,
+    odds: 1.5,
+    targetProfit: 1000000,
+    daysNeeded: 0,
+    finalBalance: 0,
+    progressPercent: 0
+};
 
-// Audio player variables
-const audio = document.getElementById('audioPlayer');
-let currentSongIndex = -1;
-let isPlaying = false;
-
-// ===========================================
-// INITIALIZATION
-// ===========================================
-document.addEventListener('DOMContentLoaded', function() {
-    // Show permission card if first time
-    if (!hasPermission) {
-        document.getElementById('permission-card').style.display = 'block';
-    } else {
-        loadData();
-        initializeApp();
-    }
-    
-    // Setup navigation
-    setupNavigation();
-    
-    // Setup file input
-    document.getElementById('fileInput').addEventListener('change', handleFileSelect);
-    
-    // Setup audio events
-    setupAudioEvents();
-    
-    // Profile dropdown toggle
-    document.getElementById('profile-toggle').addEventListener('click', function(e) {
-        e.stopPropagation();
-        document.getElementById('profile-dropdown').classList.toggle('show');
-    });
-    
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function() {
-        document.getElementById('profile-dropdown').classList.remove('show');
-    });
-    
-    // Progress bar seek
-    document.getElementById('progressBar').addEventListener('input', function(e) {
-        if (audio.duration) {
-            audio.currentTime = (e.target.value / 100) * audio.duration;
-        }
-    });
-    
-    // Volume control
-    document.getElementById('volumeControl').addEventListener('input', function(e) {
-        audio.volume = e.target.value;
-        if (hasPermission) {
-            profile.volume = e.target.value;
-            saveProfile();
-        }
-    });
-});
-
-// ===========================================
-// PERMISSION HANDLING
-// ===========================================
-function grantFileAccess() {
-    hasPermission = true;
-    localStorage.setItem(PERMISSION_KEY, 'granted');
-    document.getElementById('permission-card').style.display = 'none';
-    
-    // Initialize with empty data
-    musicLibrary = [];
-    favourites = [];
-    playlists = [];
-    profile = {
-        name: 'Music Listener',
-        volume: 1,
-        theme: '#3498db',
-        picture: null
-    };
-    
-    saveProfile();
-    initializeApp();
-    showToast('✅ File access granted');
-}
-
-function denyFileAccess() {
-    document.getElementById('permission-card').style.display = 'none';
-    showToast('❌ Permission denied. Cannot access files');
-}
-
-// ===========================================
-// DATA LOADING
-// ===========================================
+// Load from localStorage
 function loadData() {
-    musicLibrary = JSON.parse(localStorage.getItem(MUSIC_LIBRARY_KEY)) || [];
-    favourites = JSON.parse(localStorage.getItem(FAVOURITES_KEY)) || [];
-    playlists = JSON.parse(localStorage.getItem(PLAYLISTS_KEY)) || [];
-    profile = JSON.parse(localStorage.getItem(PROFILE_KEY)) || {
-        name: 'Music Listener',
-        volume: 1,
-        theme: '#3498db',
-        picture: null
+    const savedBets = localStorage.getItem('betwin_all_bets');
+    const savedPlan = localStorage.getItem('betwin_profit_plan');
+    
+    if (savedBets) allBets = JSON.parse(savedBets);
+    if (savedPlan) profitPlan = JSON.parse(savedPlan);
+}
+
+function saveData() {
+    localStorage.setItem('betwin_all_bets', JSON.stringify(allBets));
+    localStorage.setItem('betwin_profit_plan', JSON.stringify(profitPlan));
+}
+
+// ---------- UTILS ----------
+function formatTZS(amount) {
+    return 'Tzs. ' + Number(amount).toLocaleString('en-TZ', {
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0
+    });
+}
+
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// ---------- NAVIGATION ----------
+function navigateToPage(pageName) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    
+    const pageMap = {
+        'dashboard': 'dashboard-page',
+        'calculator': 'calculator-page',
+        'betslip': 'betslip-page'
     };
-}
-
-function initializeApp() {
-    // Load all displays
-    displayMusicLibrary();
-    displayFavourites();
-    displayPlaylists();
-    displayRecentSongs();
-    updateStats();
-    loadProfile();
-    updateProfileDropdown();
-}
-
-// ===========================================
-// NAVIGATION
-// ===========================================
-function setupNavigation() {
-    const navBtns = document.querySelectorAll('.nav-btn');
     
-    navBtns.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const pageId = this.getAttribute('data-page');
-            showPage(pageId);
-        });
-    });
-}
-
-function showPage(pageId) {
-    // Hide all pages
-    document.querySelectorAll('.page').forEach(page => {
-        page.classList.remove('active');
-    });
+    const pageId = pageMap[pageName] || 'dashboard-page';
+    document.getElementById(pageId).classList.add('active');
     
-    // Show selected page
-    document.getElementById(pageId + '-page').classList.add('active');
-    
-    // Update navigation buttons
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
-        if (btn.getAttribute('data-page') === pageId) {
+        if (btn.getAttribute('data-page') === pageName) {
             btn.classList.add('active');
         }
     });
     
-    // Refresh content
-    if (pageId === 'library') displayMusicLibrary();
-    if (pageId === 'favourites') displayFavourites();
-    if (pageId === 'playlists') displayPlaylists();
-    if (pageId === 'recent') displayRecentSongs();
-    if (pageId === 'profile') loadProfile();
-    
-    // Close dropdown
     document.getElementById('profile-dropdown').classList.remove('show');
+    
+    refreshAllUI();
 }
 
-// ===========================================
-// FILE HANDLING
-// ===========================================
-function handleFileSelect(event) {
-    if (!hasPermission) {
-        showToast('❌ Please grant file access first');
+// ---------- BET TAB SWITCHING ----------
+function switchBetTab(tab) {
+    currentTab = tab;
+    
+    document.querySelectorAll('#tab-online, #tab-won, #tab-lost').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById('tab-' + tab).classList.add('active');
+    
+    displayBets(tab);
+}
+
+function displayBets(status) {
+    const betsContainer = document.getElementById('bets-list');
+    const betsEmpty = document.getElementById('bets-empty');
+    
+    const filteredBets = allBets.filter(bet => bet.status === status);
+    
+    if (filteredBets.length === 0) {
+        betsContainer.style.display = 'none';
+        betsEmpty.style.display = 'block';
         return;
     }
     
-    const files = Array.from(event.target.files);
+    betsContainer.style.display = 'block';
+    betsEmpty.style.display = 'none';
     
-    files.forEach(file => {
-        if (!file.type.startsWith('audio/')) {
-            showToast(`❌ ${file.name} is not an audio file`);
-            return;
+    betsContainer.innerHTML = filteredBets.map(bet => {
+        const matchDetails = bet.matches.map(m => 
+            `<div style="font-size: 0.85rem; margin: 3px 0;">
+                <strong>${m.match}</strong> · ${m.league}<br>
+                <span style="color: #3498db;">${m.option}</span> · Odds: ${m.odds}
+            </div>`
+        ).join('');
+        
+        const statusBadge = {
+            'online': '<span style="background: #3498db; color: white; padding: 3px 12px; border-radius: 15px; font-size: 0.8rem;">📝 Online</span>',
+            'won': '<span style="background: #28a745; color: white; padding: 3px 12px; border-radius: 15px; font-size: 0.8rem;">🏆 Won</span>',
+            'lost': '<span style="background: #dc3545; color: white; padding: 3px 12px; border-radius: 15px; font-size: 0.8rem;">❌ Lost</span>'
+        }[bet.status];
+        
+        return `
+            <div class="transaction-item" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #666; font-size: 0.85rem;">${new Date(bet.date).toLocaleString()}</span>
+                    ${statusBadge}
+                </div>
+                <div style="width: 100%;">
+                    ${matchDetails}
+                </div>
+                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid #eee;">
+                    <div>
+                        <span style="color: #666;">Total Odds: <strong>${bet.totalOdds.toFixed(2)}</strong></span><br>
+                        <span style="color: #666;">Stake: <strong>${formatTZS(bet.stake)}</strong></span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="color: #28a745; font-weight: 700; font-size: 1.1rem;">Potential: ${formatTZS(bet.potentialWin)}</span>
+                        ${bet.status === 'online' ? `
+                            <div style="margin-top: 5px; display: flex; gap: 5px;">
+                                <button class="success" style="padding: 5px 12px; font-size: 0.8rem;" onclick="updateBetStatus('${bet.id}', 'won')">🏆 Won</button>
+                                <button class="danger" style="padding: 5px 12px; font-size: 0.8rem;" onclick="updateBetStatus('${bet.id}', 'lost')">❌ Lost</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateBetStatus(betId, newStatus) {
+    const bet = allBets.find(b => b.id === betId);
+    if (bet) {
+        bet.status = newStatus;
+        if (newStatus === 'won') {
+            bet.wonAmount = bet.potentialWin;
         }
-        
-        const url = URL.createObjectURL(file);
-        const audioElement = new Audio(url);
-        
-        audioElement.addEventListener('loadedmetadata', () => {
-            const song = {
-                id: Date.now() + Math.random(),
-                name: file.name.replace(/\.[^/.]+$/, ""),
-                artist: 'Unknown Artist',
-                url: url,
-                duration: audioElement.duration,
-                size: file.size,
-                type: file.type,
-                added: new Date().toISOString(),
-                playCount: 0
-            };
-            
-            musicLibrary.unshift(song);
-            saveLibrary();
-            displayMusicLibrary();
-            displayRecentSongs();
-            updateStats();
-            
-            showToast(`✅ Added: ${song.name}`);
-        });
-    });
-}
-
-// ===========================================
-// AUDIO PLAYER FUNCTIONS
-// ===========================================
-function setupAudioEvents() {
-    audio.addEventListener('timeupdate', updateProgress);
-    audio.addEventListener('ended', nextSong);
-    audio.addEventListener('loadedmetadata', () => {
-        document.getElementById('durationDisplay').textContent = formatTime(audio.duration);
-    });
-}
-
-function playSong(index) {
-    if (!hasPermission || index < 0 || index >= musicLibrary.length) return;
-    
-    currentSongIndex = index;
-    const song = musicLibrary[index];
-    
-    audio.src = song.url;
-    audio.volume = profile.volume;
-    audio.play();
-    
-    isPlaying = true;
-    document.getElementById('playPauseBtn').innerHTML = '<i class="fas fa-pause"></i>';
-    document.getElementById('currentSongTitle').textContent = song.name;
-    document.getElementById('currentSongArtist').textContent = song.artist;
-    document.getElementById('nowPlayingBar').style.display = 'block';
-    
-    song.playCount = (song.playCount || 0) + 1;
-    saveLibrary();
-    
-    highlightPlayingSong();
-}
-
-function playSongById(songId) {
-    const index = musicLibrary.findIndex(s => s.id === songId);
-    if (index !== -1) playSong(index);
-}
-
-function playPause() {
-    if (!hasPermission) {
-        showToast('❌ Please grant file access first');
-        return;
-    }
-    
-    if (musicLibrary.length === 0) {
-        showToast('Add some music first!');
-        return;
-    }
-    
-    if (currentSongIndex === -1) {
-        playSong(0);
-        return;
-    }
-    
-    if (isPlaying) {
-        audio.pause();
-        isPlaying = false;
-        document.getElementById('playPauseBtn').innerHTML = '<i class="fas fa-play"></i>';
-    } else {
-        audio.play();
-        isPlaying = true;
-        document.getElementById('playPauseBtn').innerHTML = '<i class="fas fa-pause"></i>';
+        saveData();
+        refreshAllUI();
+        showMessage('Bet marked as ' + newStatus.toUpperCase() + '!');
     }
 }
 
-function nextSong() {
-    if (musicLibrary.length === 0) return;
+// ---------- BETSLIP BUILDER ----------
+function addMatchToSlip() {
+    const match = document.getElementById('match-name').value.trim();
+    const league = document.getElementById('match-league').value.trim();
+    const option = document.getElementById('bet-option').value;
+    const odds = parseFloat(document.getElementById('match-odds').value);
     
-    let nextIndex = currentSongIndex + 1;
-    if (nextIndex >= musicLibrary.length) nextIndex = 0;
+    if (!match) return showMessage('Please enter match teams', false);
+    if (!league) return showMessage('Please enter league name', false);
+    if (!odds || odds <= 1.0) return showMessage('Please enter valid odds (> 1.0)', false);
     
-    playSong(nextIndex);
-}
-
-function previousSong() {
-    if (musicLibrary.length === 0) return;
-    
-    let prevIndex = currentSongIndex - 1;
-    if (prevIndex < 0) prevIndex = musicLibrary.length - 1;
-    
-    playSong(prevIndex);
-}
-
-function updateProgress() {
-    const progress = (audio.currentTime / audio.duration) * 100 || 0;
-    document.getElementById('progressBar').value = progress;
-    document.getElementById('currentTimeDisplay').textContent = formatTime(audio.currentTime);
-}
-
-function formatTime(seconds) {
-    if (isNaN(seconds)) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
-// ===========================================
-// FAVOURITE FUNCTIONS
-// ===========================================
-function toggleFavourite(songId) {
-    const index = favourites.findIndex(f => f.id === songId);
-    
-    if (index === -1) {
-        const song = musicLibrary.find(s => s.id === songId);
-        if (song) {
-            favourites.push(song);
-            showToast('❤️ Added to favourites');
-        }
-    } else {
-        favourites.splice(index, 1);
-        showToast('💔 Removed from favourites');
-    }
-    
-    saveFavourites();
-    displayMusicLibrary();
-    displayFavourites();
-    updateStats();
-}
-
-function isFavourite(songId) {
-    return favourites.some(f => f.id === songId);
-}
-
-// ===========================================
-// DISPLAY FUNCTIONS
-// ===========================================
-function displayMusicLibrary() {
-    if (!hasPermission) return;
-    
-    const songsList = document.getElementById('songsList');
-    const searchInput = document.getElementById('searchInput')?.value.toLowerCase() || '';
-    
-    let songsToShow = musicLibrary;
-    
-    if (searchInput) {
-        songsToShow = musicLibrary.filter(song => 
-            song.name.toLowerCase().includes(searchInput) ||
-            song.artist.toLowerCase().includes(searchInput)
-        );
-    }
-    
-    if (songsToShow.length === 0) {
-        songsList.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-headphones"></i>
-                <h3>No songs found</h3>
-                <p>${musicLibrary.length === 0 ? 'Add some music files' : 'Try a different search'}</p>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '';
-    songsToShow.forEach((song) => {
-        const isPlaying = (currentSongIndex !== -1 && musicLibrary[currentSongIndex]?.id === song.id);
-        const isFav = isFavourite(song.id);
-        
-        html += `
-            <div class="song-item ${isPlaying ? 'playing' : ''} ${isFav ? 'favourite' : ''}" onclick="playSongById(${song.id})">
-                <div class="song-artwork">
-                    <i class="fas fa-music"></i>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${song.name}</div>
-                    <div class="song-artist">${song.artist}</div>
-                </div>
-                <div class="song-duration">${formatTime(song.duration)}</div>
-                <div class="song-actions" onclick="event.stopPropagation()">
-                    <button onclick="toggleFavourite(${song.id})" class="favourite-btn ${isFav ? 'active' : ''}">
-                        <i class="fas fa-heart"></i>
-                    </button>
-                    <button onclick="addToPlaylist(${song.id})" class="secondary">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                    <button onclick="deleteSong(${song.id})" class="danger">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        `;
+    currentSlip.push({
+        id: generateId(),
+        match: match,
+        league: league,
+        option: option,
+        odds: odds
     });
     
-    songsList.innerHTML = html;
+    // Clear inputs
+    document.getElementById('match-name').value = '';
+    document.getElementById('match-league').value = '';
+    document.getElementById('match-odds').value = '1.50';
+    
+    updateSlipUI();
 }
 
-function displayFavourites() {
-    if (!hasPermission) return;
+function updateSlipUI() {
+    const slipContainer = document.getElementById('current-slip-matches');
+    const slipEmpty = document.getElementById('slip-empty');
+    const matchCount = document.getElementById('match-count');
+    const totalOddsDisplay = document.getElementById('total-odds-display');
+    const potentialWin = document.getElementById('potential-win');
+    const stake = parseFloat(document.getElementById('slip-stake').value) || 1000;
     
-    const favouritesList = document.getElementById('favouritesList');
+    matchCount.textContent = currentSlip.length + ' Match' + (currentSlip.length !== 1 ? 'es' : '');
     
-    if (favourites.length === 0) {
-        favouritesList.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-heart"></i>
-                <h3>No favourite songs</h3>
-                <p>Click the heart icon on any song to add it to favourites</p>
+    if (currentSlip.length === 0) {
+        slipEmpty.style.display = 'block';
+        slipContainer.innerHTML = '';
+        totalOddsDisplay.textContent = '0.00';
+        potentialWin.textContent = formatTZS(0);
+        return;
+    }
+    
+    slipEmpty.style.display = 'none';
+    
+    slipContainer.innerHTML = currentSlip.map((m, i) => `
+        <div style="background: #f8fbff; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid #3498db; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <strong>${m.match}</strong><br>
+                <span style="font-size: 0.85rem; color: #666;">${m.league}</span><br>
+                <span style="font-size: 0.85rem; color: #3498db;">${m.option}</span>
             </div>
-        `;
-        return;
-    }
-    
-    let html = '';
-    favourites.forEach((song) => {
-        html += `
-            <div class="song-item favourite" onclick="playSongById(${song.id})">
-                <div class="song-artwork">
-                    <i class="fas fa-music"></i>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${song.name}</div>
-                    <div class="song-artist">${song.artist}</div>
-                </div>
-                <div class="song-duration">${formatTime(song.duration)}</div>
-                <div class="song-actions" onclick="event.stopPropagation()">
-                    <button onclick="toggleFavourite(${song.id})" class="favourite-btn active">
-                        <i class="fas fa-heart"></i>
-                    </button>
-                </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-weight: 700; color: #28a745;">${m.odds.toFixed(2)}</span>
+                <button class="danger" style="padding: 5px 10px; font-size: 0.75rem;" onclick="removeMatchFromSlip('${m.id}')">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
-        `;
-    });
+        </div>
+    `).join('');
     
-    favouritesList.innerHTML = html;
+    // Calculate total odds
+    const totalOdds = currentSlip.reduce((product, m) => product * m.odds, 1);
+    totalOddsDisplay.textContent = totalOdds.toFixed(2);
+    potentialWin.textContent = formatTZS(stake * totalOdds);
 }
 
-function displayRecentSongs() {
-    if (!hasPermission) return;
-    
-    const recentSongs = [...musicLibrary].sort((a, b) => 
-        new Date(b.added) - new Date(a.added)
-    ).slice(0, 10);
-    
-    const recentList = document.getElementById('recentSongsList');
-    
-    if (recentSongs.length === 0) {
-        recentList.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-clock"></i>
-                <h3>No recently added songs</h3>
-                <p>Add music to see them here</p>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '';
-    recentSongs.forEach((song) => {
-        html += `
-            <div class="song-item" onclick="playSongById(${song.id})">
-                <div class="song-artwork">
-                    <i class="fas fa-music"></i>
-                </div>
-                <div class="song-info">
-                    <div class="song-title">${song.name}</div>
-                    <div class="song-artist">${song.artist}</div>
-                </div>
-                <div class="song-duration">${formatTime(song.duration)}</div>
-            </div>
-        `;
-    });
-    
-    recentList.innerHTML = html;
+function removeMatchFromSlip(matchId) {
+    currentSlip = currentSlip.filter(m => m.id !== matchId);
+    updateSlipUI();
 }
 
-function displayPlaylists() {
-    if (!hasPermission) return;
-    
-    const playlistsGrid = document.getElementById('playlistsGrid');
-    const emptyPlaylists = document.getElementById('emptyPlaylists');
-    
-    if (playlists.length === 0) {
-        playlistsGrid.innerHTML = '';
-        emptyPlaylists.style.display = 'block';
-        return;
-    }
-    
-    emptyPlaylists.style.display = 'none';
-    
-    let html = '';
-    playlists.forEach((playlist, index) => {
-        html += `
-            <div class="playlist-card" onclick="openPlaylist(${index})">
-                <div class="playlist-icon">
-                    <i class="fas fa-list"></i>
-                </div>
-                <div class="playlist-name">${playlist.name}</div>
-                <div class="playlist-count">${playlist.songs.length} songs</div>
-            </div>
-        `;
-    });
-    
-    playlistsGrid.innerHTML = html;
+function clearCurrentSlip() {
+    currentSlip = [];
+    updateSlipUI();
 }
 
-function searchMusic() {
-    displayMusicLibrary();
-}
-
-function highlightPlayingSong() {
-    displayMusicLibrary();
-}
-
-// ===========================================
-// PLAYLIST FUNCTIONS
-// ===========================================
-function createPlaylist() {
-    if (!hasPermission) {
-        showToast('❌ Please grant file access first');
-        return;
-    }
+function placeBet() {
+    if (currentSlip.length === 0) return showMessage('Add at least one match to your slip', false);
     
-    const name = prompt('Enter playlist name:');
-    if (!name) return;
+    const stake = parseFloat(document.getElementById('slip-stake').value) || 1000;
+    if (stake < 100) return showMessage('Minimum stake is 100 TZS', false);
     
-    playlists.push({
-        id: Date.now(),
-        name: name,
-        songs: [],
-        created: new Date().toISOString()
-    });
+    const totalOdds = currentSlip.reduce((product, m) => product * m.odds, 1);
     
-    savePlaylists();
-    displayPlaylists();
-    updateStats();
-    showToast(`✅ Playlist "${name}" created`);
-}
-
-function addToPlaylist(songId) {
-    if (playlists.length === 0) {
-        if (confirm('No playlists yet. Create one?')) {
-            createPlaylist();
-        }
-        return;
-    }
-    
-    const song = musicLibrary.find(s => s.id === songId);
-    if (!song) return;
-    
-    const playlistNames = playlists.map((p, i) => `${i + 1}. ${p.name}`).join('\n');
-    const choice = prompt(`Select playlist number:\n${playlistNames}`);
-    
-    if (choice && !isNaN(choice) && choice > 0 && choice <= playlists.length) {
-        const playlistIndex = choice - 1;
-        
-        if (!playlists[playlistIndex].songs.some(s => s.id === song.id)) {
-            playlists[playlistIndex].songs.push(song);
-            savePlaylists();
-            showToast(`✅ Added to ${playlists[playlistIndex].name}`);
-        } else {
-            showToast('Song already in playlist');
-        }
-    }
-}
-
-function openPlaylist(playlistIndex) {
-    const playlist = playlists[playlistIndex];
-    const songList = playlist.songs;
-    
-    if (songList.length === 0) {
-        showToast('Playlist is empty');
-        return;
-    }
-    
-    // Show playlist songs in library view
-    showPage('library');
-    displayMusicLibrary(songList);
-}
-
-// ===========================================
-// PROFILE FUNCTIONS
-// ===========================================
-function loadProfile() {
-    if (!hasPermission) return;
-    
-    document.getElementById('displayName').value = profile.name;
-    document.getElementById('defaultVolume').value = profile.volume;
-    document.getElementById('volumeControl').value = profile.volume;
-    document.getElementById('themeColor').value = profile.theme;
-    
-    audio.volume = profile.volume;
-    document.getElementById('profileName').textContent = profile.name;
-}
-
-function saveProfile() {
-    if (!hasPermission) return;
-    
-    profile.name = document.getElementById('displayName').value;
-    profile.volume = parseFloat(document.getElementById('defaultVolume').value);
-    profile.theme = document.getElementById('themeColor').value;
-    
-    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-    
-    updateProfileDropdown();
-    document.getElementById('profileName').textContent = profile.name;
-    showToast('✅ Settings saved');
-}
-
-function updateProfilePicture() {
-    if (!hasPermission) {
-        showToast('❌ Please grant file access first');
-        return;
-    }
-    
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    
-    input.onchange = function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            profile.picture = event.target.result;
-            saveProfile();
-            updateProfileDropdown();
-            showToast('✅ Profile picture updated');
-        };
-        reader.readAsDataURL(file);
+    const bet = {
+        id: generateId(),
+        matches: [...currentSlip],
+        totalOdds: totalOdds,
+        stake: stake,
+        potentialWin: stake * totalOdds,
+        date: new Date().toISOString(),
+        status: 'online'
     };
     
-    input.click();
+    allBets.push(bet);
+    currentSlip = [];
+    
+    saveData();
+    updateSlipUI();
+    refreshAllUI();
+    navigateToPage('dashboard');
+    showMessage('Bet placed successfully! Potential win: ' + formatTZS(bet.potentialWin));
 }
 
-function updateProfileDropdown() {
-    document.getElementById('dropdown-username').textContent = profile.name || 'Music Listener';
+// ---------- PROFIT CALCULATOR ----------
+function calculateProfitPath() {
+    const stake = parseFloat(document.getElementById('stake-input').value) || 1000;
+    const odds = parseFloat(document.getElementById('odds-input').value) || 1.5;
+    const targetProfit = parseFloat(document.getElementById('target-input').value) || 1000000;
     
-    if (profile.picture) {
-        document.getElementById('profile-icon').innerHTML = 
-            `<img src="${profile.picture}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">`;
-        document.getElementById('dropdown-profile-pic').innerHTML = 
-            `<img src="${profile.picture}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">`;
+    if (odds <= 1.0) return showMessage('Odds must be greater than 1.0', false);
+    
+    let balance = stake;
+    let days = 0;
+    const maxDays = 10000;
+    
+    while ((balance - stake) < targetProfit && days < maxDays) {
+        balance *= odds;
+        days++;
+    }
+    
+    profitPlan = {
+        stake: stake,
+        odds: odds,
+        targetProfit: targetProfit,
+        daysNeeded: days >= maxDays ? Infinity : days,
+        finalBalance: balance,
+        progressPercent: days >= maxDays ? 0 : ((balance - stake) / targetProfit) * 100
+    };
+    
+    const resultDiv = document.getElementById('calc-result');
+    resultDiv.style.display = 'block';
+    
+    if (profitPlan.daysNeeded === Infinity) {
+        document.getElementById('calc-days').textContent = 'Too Many Days';
+        document.getElementById('calc-balance').textContent = 'Target unreachable';
+        document.getElementById('calc-progress').style.width = '0%';
+        document.getElementById('calc-profit-text').textContent = 'Adjust parameters';
+        document.getElementById('calc-percent').textContent = 'N/A';
     } else {
-        document.getElementById('profile-icon').innerHTML = '<i class="fas fa-user"></i>';
-        document.getElementById('dropdown-profile-pic').innerHTML = '<i class="fas fa-user"></i>';
+        document.getElementById('calc-days').textContent = profitPlan.daysNeeded + ' Days';
+        document.getElementById('calc-balance').textContent = 'Final: ' + formatTZS(profitPlan.finalBalance);
+        document.getElementById('calc-progress').style.width = Math.min(100, profitPlan.progressPercent) + '%';
+        document.getElementById('calc-profit-text').textContent = 'Profit: ' + formatTZS(profitPlan.finalBalance - stake);
+        document.getElementById('calc-percent').textContent = profitPlan.progressPercent.toFixed(1) + '% of target';
     }
-}
-
-function logout() {
-    if (confirm('Are you sure you want to logout?')) {
-        showToast('👋 Logged out');
-        // Just refresh UI
-        showPage('library');
-    }
-}
-
-// ===========================================
-// STORAGE FUNCTIONS
-// ===========================================
-function saveLibrary() {
-    localStorage.setItem(MUSIC_LIBRARY_KEY, JSON.stringify(musicLibrary));
-    updateStats();
-}
-
-function saveFavourites() {
-    localStorage.setItem(FAVOURITES_KEY, JSON.stringify(favourites));
-}
-
-function savePlaylists() {
-    localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
-}
-
-function deleteSong(songId) {
-    if (!hasPermission) return;
     
-    if (confirm('Delete this song?')) {
-        const songIndex = musicLibrary.findIndex(s => s.id === songId);
-        if (songIndex !== -1) {
-            URL.revokeObjectURL(musicLibrary[songIndex].url);
-            musicLibrary.splice(songIndex, 1);
-            
-            const favIndex = favourites.findIndex(f => f.id === songId);
-            if (favIndex !== -1) {
-                favourites.splice(favIndex, 1);
-                saveFavourites();
-            }
-            
-            saveLibrary();
-            displayMusicLibrary();
-            displayFavourites();
-            
-            if (currentSongIndex === songIndex) {
-                audio.pause();
-                currentSongIndex = -1;
-                isPlaying = false;
-                document.getElementById('nowPlayingBar').style.display = 'none';
-            }
-            
-            updateStats();
-            showToast('✅ Song deleted');
+    saveData();
+}
+
+// ---------- DASHBOARD STATS ----------
+function updateDashboardStats() {
+    const online = allBets.filter(b => b.status === 'online').length;
+    const won = allBets.filter(b => b.status === 'won').length;
+    const lost = allBets.filter(b => b.status === 'lost').length;
+    
+    const totalProfit = allBets
+        .filter(b => b.status === 'won')
+        .reduce((sum, b) => sum + (b.wonAmount || b.potentialWin) - b.stake, 0);
+    
+    document.getElementById('stat-online').textContent = online;
+    document.getElementById('stat-won').textContent = won;
+    document.getElementById('stat-lost').textContent = lost;
+    document.getElementById('stat-total-profit').textContent = formatTZS(totalProfit);
+}
+
+// ---------- UI REFRESH ----------
+function refreshAllUI() {
+    updateDashboardStats();
+    displayBets(currentTab);
+    updateSlipUI();
+}
+
+// ---------- MODAL ----------
+function showMessage(msg, isSuccess = true) {
+    document.getElementById('success-message').textContent = msg;
+    document.getElementById('success-modal').style.display = 'flex';
+}
+
+function closeSuccessModal() {
+    document.getElementById('success-modal').style.display = 'none';
+}
+
+// ---------- RESET ----------
+function resetAllData() {
+    if (confirm('Reset ALL data? This cannot be undone.')) {
+        allBets = [];
+        currentSlip = [];
+        profitPlan = {
+            stake: 1000,
+            odds: 1.5,
+            targetProfit: 1000000,
+            daysNeeded: 0,
+            finalBalance: 0,
+            progressPercent: 0
+        };
+        localStorage.clear();
+        saveData();
+        refreshAllUI();
+        document.getElementById('calc-result').style.display = 'none';
+        showMessage('All data cleared!');
+    }
+}
+
+// ---------- INIT ----------
+document.addEventListener('DOMContentLoaded', () => {
+    loadData();
+    
+    // Set form values
+    document.getElementById('stake-input').value = profitPlan.stake;
+    document.getElementById('odds-input').value = profitPlan.odds;
+    document.getElementById('target-input').value = profitPlan.targetProfit;
+    
+    // Profile toggle
+    document.getElementById('profile-toggle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('profile-dropdown').classList.toggle('show');
+    });
+    
+    document.addEventListener('click', (e) => {
+        const dd = document.getElementById('profile-dropdown');
+        const btn = document.getElementById('profile-toggle');
+        if (!btn.contains(e.target) && !dd.contains(e.target)) {
+            dd.classList.remove('show');
         }
-    }
-}
-
-function clearAllData() {
-    if (!hasPermission) return;
+    });
     
-    if (confirm('Clear entire music library? This cannot be undone.')) {
-        musicLibrary.forEach(song => URL.revokeObjectURL(song.url));
-        
-        musicLibrary = [];
-        favourites = [];
-        playlists = [];
-        
-        localStorage.setItem(MUSIC_LIBRARY_KEY, JSON.stringify(musicLibrary));
-        localStorage.setItem(FAVOURITES_KEY, JSON.stringify(favourites));
-        localStorage.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
-        
-        displayMusicLibrary();
-        displayFavourites();
-        displayPlaylists();
-        displayRecentSongs();
-        updateStats();
-        
-        audio.pause();
-        document.getElementById('nowPlayingBar').style.display = 'none';
-        
-        showToast('✅ Library cleared');
-    }
-}
-
-function updateStats() {
-    if (!hasPermission) return;
+    // Nav buttons
+    document.querySelectorAll('.nav-btn[data-page]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            navigateToPage(this.getAttribute('data-page'));
+        });
+    });
     
-    const totalSize = musicLibrary.reduce((sum, song) => sum + (song.size || 0), 0);
-    const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+    // Stake input live update
+    document.getElementById('slip-stake').addEventListener('input', updateSlipUI);
     
-    const totalMinutes = musicLibrary.reduce((sum, song) => sum + (song.duration || 0), 0) / 60;
+    // Modal close
+    document.getElementById('success-modal').addEventListener('click', function(e) {
+        if (e.target === this) closeSuccessModal();
+    });
     
-    document.getElementById('totalSongs').textContent = musicLibrary.length;
-    document.getElementById('totalFavourites').textContent = favourites.length;
-    document.getElementById('totalPlaylists').textContent = playlists.length;
-    document.getElementById('storageUsed').textContent = totalSizeMB + ' MB';
-    
-    document.getElementById('totalSongsStat').textContent = musicLibrary.length;
-    document.getElementById('totalFavouritesStat').textContent = favourites.length;
-    document.getElementById('totalStorage').textContent = totalSizeMB + ' MB';
-    document.getElementById('totalPlaytime').textContent = Math.round(totalMinutes) + ' min';
-    
-    const percentUsed = Math.min((totalSize / (50 * 1024 * 1024)) * 100, 100);
-    document.getElementById('storageBar').style.width = percentUsed + '%';
-}
-
-// ===========================================
-// NOTIFICATION
-// ===========================================
-function showToast(message) {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.style.display = 'block';
-    
-    setTimeout(() => {
-        toast.style.display = 'none';
-    }, 3000);
-      }
+    refreshAllUI();
+});
